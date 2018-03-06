@@ -65,5 +65,5 @@ void loop() {
   setSpeedsRaw(0,0);
   Serial.print("Raw value: ");
   Serial.println(analogRead(APIN_DIST));
-  delay(100);
+  delay(20);
 }

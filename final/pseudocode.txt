@@ -1,0 +1,38 @@
+def Setup():
+    // do setup
+
+def Loop():
+    GetToBall()
+    GrabBall()
+    ReturnToCenter()
+    GoToReturnBucket()
+    DropBall()
+    WaitForReset()
+        
+def GetToBall():
+    while True:
+        if TryBallPosition(1):
+            return
+        if TryBallPosition(2):
+            return
+        if TryBallPosition(0):
+            return
+
+def TryBallPosition(n):
+    SetArmPosition(n)
+    irsig = CheckIRSignal()
+    if (irsig is present) and (irsig == n):
+        GoInDirection(n)
+        return True
+    return False
+
+def GoInDirection(n):
+    # Assume bot is facing towards position 1
+    assert(0 <= n <= 2)
+    if n == 2:
+        RotateOnSpot(-90)
+    elif n == 0:
+        RotateOnSpot( 90)
+    DriveStraightTowardsWall()
+
+def DriveStraightTowardsWall()
