@@ -15,6 +15,7 @@ void setup() {
   pinMode(PIN_LED,    OUTPUT);
   pinMode(APIN_DIST,   INPUT);
   //irSerial.attach(PIN_IR_RX, -1);
+  distAvg.ResetToValue(analogRead(APIN_DIST));
 }
 
 void loop() {

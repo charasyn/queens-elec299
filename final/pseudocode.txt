@@ -18,21 +18,52 @@ def GetToBall():
         if TryBallPosition(0):
             return
 
-def TryBallPosition(n):
-    SetArmPosition(n)
+# dirn is which spot we're checking if the ball is at
+def TryBallPosition(dirn):
+    SetArmPosition(dirn)
     irsig = CheckIRSignal()
-    if (irsig is present) and (irsig == n):
-        GoInDirection(n)
+    if (irsig is present) and ((int)irsig == dirn):
+        GoInDirection(dirn)
         return True
     return False
 
-def GoInDirection(n):
+# dirn is which spot the ball is at
+def GoInDirection(dirn):
     # Assume bot is facing towards position 1
-    assert(0 <= n <= 2)
-    if n == 2:
+    assert(0 <= dirn <= 2)
+    if dirn == 2:
         RotateOnSpot(-90)
-    elif n == 0:
+    elif dirn == 0:
         RotateOnSpot( 90)
     DriveStraightTowardsWall()
 
-def DriveStraightTowardsWall()
+# angle is the angle to rotate the bot by (degrees clockwise)
+def RotateOnSpot(angle):
+    calculate s1, s2, t
+    SetMotorSpeeds(s1, s2)
+    Delay(t)
+    SetMotorSpeeds(0,0)
+
+# s1, s2 are the speed for each motor
+def SetMotorSpeeds(s1, s2):
+    # no function calls
+
+def DriveStraightTowardsWall():
+    distAvg.ResetToValue(GetDist())
+    while distAvg.AddSample(GetDist()) < thresh1:
+        SetMotorSpeeds(fast, fast)
+        delay(20)
+    while distAvg.AddSample(GetDist()) < thresh2:
+        SetMotorSpeeds(med, med)
+        delay(20)
+    while distAvg.AddSample(GetDist()) > thresh3:
+        SetMotorSpeeds(slow, slow)
+        delay(20)
+    SetMotorSpeeds(0,0)
+
+def GetDist():
+    # no function calls
+
+# t_ms is time in milliseconds to delay for
+def delay(t_ms):
+    # it's a standard library function??

@@ -7,8 +7,9 @@ class MovingAverage {
   public:
     MovingAverage(int numSamples);
     ~MovingAverage();
-    uint16_t GetCurrentAvg(void);
+    uint16_t GetCurrentAvg();
     uint16_t AddSample(uint16_t sample);
+    void ResetToValue(uint16_t sample);
   private:
     int _numSamples;
     int _lastSample;
