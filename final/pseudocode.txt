@@ -39,7 +39,7 @@ def GoInDirection(dirn):
 
 # angle is the angle to rotate the bot by (degrees clockwise)
 def RotateOnSpot(angle):
-    calculate s1, s2, t
+    # calculate s1, s2, t
     SetMotorSpeeds(s1, s2)
     Delay(t)
     SetMotorSpeeds(0,0)
