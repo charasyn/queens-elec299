@@ -56,10 +56,21 @@ def DriveStraightTowardsWall():
     while distAvg.AddSample(GetDist()) < thresh2:
         SetMotorSpeeds(med, med)
         delay(20)
+    # once we get close enough, there is a peak in the distance values
+    # hence why we wait for it to go back down
     while distAvg.AddSample(GetDist()) > thresh3:
         SetMotorSpeeds(slow, slow)
         delay(20)
     SetMotorSpeeds(0,0)
+
+def DriveStraightTowardsWall_New():
+    while not at wall:
+        get general speed from distance
+        #get specific motor ratios from encoders
+        get turning ratio from line follow
+        calculate actual motor speeds
+        SetMotorSpeeds()
+        delay(10)
 
 def GetDist():
     # no function calls
