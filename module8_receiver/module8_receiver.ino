@@ -1,6 +1,6 @@
 #include "QSerial.h"
 
-#define PIN_IR_RX ( 2)
+#define PIN_IR_RX (A5)
 #define PIN_LED   (13)
 
 QSerial irSerial;
@@ -9,7 +9,7 @@ char buf[100];
 byte index;
 
 void setup() {
-  Serial.begin(1000000);
+  Serial.begin(115200);
   pinMode(PIN_IR_RX, INPUT);
   pinMode(PIN_LED, OUTPUT);
   irSerial.attach(PIN_IR_RX, -1);
