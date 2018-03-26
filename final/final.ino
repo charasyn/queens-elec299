@@ -390,7 +390,7 @@ void TurnFromCenterTowardsGoalBasedOnIRPosition(int irPosition) {
   delay(2000);
 }
 
-void ReturnToCenter(void) {
+void ReturnToCenterFromGoal(void) {
   TurnCW(180);
   DriveAlongLine(false);
   GoForwardABit();
