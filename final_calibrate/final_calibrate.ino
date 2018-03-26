@@ -2,6 +2,7 @@
 
 //#define CALIBRATION
 
+int8_t lastTurn;
 Servo sPan, sTilt, sGrip;
 QSerial irSerial;
 MovingAverage distAvg(8);
@@ -14,20 +15,22 @@ MovingAverage rAvg(2);
 static void PANIC(void);
 static void loadCalibrationData(void);
 static void saveCalibrationData(void);
-static void setMotorSpeeds(int, int);
-static void setMotorSpeeds_raw(int, int);
 static void waitForInput(void);
 static void calibrateLineSensors(void);
 static void calibrateDistanceSensor(void);
 static void calibrateDrivingSpeeds(void);
 static void runCalibrationSuite(void);
+
+static void setMotorSpeeds(int, int);
+static void setMotorSpeeds_raw(int, int);
+static void startLineFollowFromDiagonal(void);
 static void driveAlongLine(bool);
 static void turnCW(int);
 static void turnCCW(int);
 static void goForwardABit(void);
 static void turnFromCenterTowardsBallBasedOnIRPosition(int);
 static void turnTowardsCenterBasedOnIRPosition(int);
-static void turnFromCenterTowardsGoalBasedOnIRPosition(int);
+static void goToGoal(int);
 static void returnToCenterFromGoal(void);
 static void grabBall(void);
 static void dropBall(void);
@@ -617,6 +620,86 @@ int turnFromLineFollow(void) {
     return 0;
 }
 
+static void startLineFollowFromDiagonal(void) {
+    bool distPastPeak = false, backToLine = false, keepGoing = true;
+    int loopcount = 0;
+    uint16_t distVal;
+    uint8_t baseSpeed = 3;
+    int turnResult;
+    lAvg.ResetToValue(analogRead(APIN_LINE_L));
+    cAvg.ResetToValue(analogRead(APIN_LINE_C));
+    rAvg.ResetToValue(analogRead(APIN_LINE_R));
+    distVal = distAvg.ResetToValue(analogRead(APIN_DIST));
+    do {
+        // Calculate base speed
+        distVal = distAvg.AddSample(analogRead(APIN_DIST));
+
+        if (distPastPeak) {
+                 if (distVal <= cal.distStop) break;
+            else                              baseSpeed = 1; // slow speed
+        } else {
+                 if (distVal >= cal.distPeak) distPastPeak = true;
+            else if (distVal >= cal.distSlow) baseSpeed = 2; // medium speed
+            else                              baseSpeed = 3; // full speed ahead
+        }
+        if(!backToLine && loopcount >= (1200/20))
+            setMotorSpeeds(1,1);
+
+        // Set motor speeds based on need to turn
+        turnResult = turnFromLineFollow();
+        switch(turnResult) {
+        case -1: // all black
+            keepGoing = false;
+            break;
+        case 0: // balanced
+            if(!backToLine) {
+                backToLine = true;
+                switch(lastTurn) {
+                case -1:
+                    setMotorSpeeds(3,1);
+                    break;
+                case 1:
+                    setMotorSpeeds(1,3);
+                    break;
+                default:
+                    PANIC();
+                }
+                delay(200);
+                break;
+            }
+        case 1: // all white
+            // go straight
+            setMotorSpeeds(baseSpeed, baseSpeed);
+            break;
+        default:
+            if(!backToLine) break;
+            if(turnResult > 0) {
+                int speed = 0;
+                if(baseSpeed > 1) {
+                    int low = cal.motorSpeedsR[baseSpeed - 2];
+                    int high = cal.motorSpeedsR[baseSpeed - 1];
+                    speed = low + (high - low) * (63 - turnResult) / 64;
+                }
+                setMotorSpeeds(baseSpeed, speed);
+            }
+            else {
+                int speed = 0;
+                if(baseSpeed > 1) {
+                    int low = cal.motorSpeedsL[baseSpeed - 2];
+                    int high = cal.motorSpeedsL[baseSpeed - 1];
+                    speed = low + (high - low) * (63 - turnResult) / 64;
+                }
+                setMotorSpeeds(speed, baseSpeed);
+            }
+        }
+
+        // Delay to allow time for robot to move
+        delay(20);
+        loopcount++;
+    } while (keepGoing);
+    setMotorSpeeds(0,0);
+}
+
 static void driveAlongLine(bool towardsBall) {
     bool distPastPeak = false, keepGoing = true;
     uint16_t distVal;
@@ -642,7 +725,7 @@ static void driveAlongLine(bool towardsBall) {
         if(distPastPeak && towardsBall) {
             sPan.write(109);
             sGrip.write(50);
-            sTilt.write(60);
+            sTilt.write(130);
         }
 
         // Set motor speeds based on need to turn
@@ -656,14 +739,35 @@ static void driveAlongLine(bool towardsBall) {
             break;
         case  1: // all white
             // not supposed to happen
-            PANIC();
+            switch(lastTurn) {
+                case -1: // CCW
+                    setMotorSpeeds(1,-1);
+                    break;
+                case 1:
+                    setMotorSpeeds(-1,1);
+                    break;
+                default:
+                    PANIC();
+            }
             break;
         default:
             if(turnResult > 0) {
-                setMotorSpeeds(baseSpeed, baseSpeed - 1);
+                int speed = 0;
+                if(baseSpeed > 1) {
+                    int low = cal.motorSpeedsR[baseSpeed - 2];
+                    int high = cal.motorSpeedsR[baseSpeed - 1];
+                    speed = low + (high - low) * (63 - turnResult) / 64;
+                }
+                setMotorSpeeds(baseSpeed, speed);
             }
             else {
-                setMotorSpeeds(baseSpeed - 1, baseSpeed);
+                int speed = 0;
+                if(baseSpeed > 1) {
+                    int low = cal.motorSpeedsL[baseSpeed - 2];
+                    int high = cal.motorSpeedsL[baseSpeed - 1];
+                    speed = low + (high - low) * (63 - turnResult) / 64;
+                }
+                setMotorSpeeds(speed, baseSpeed);
             }
         }
 
@@ -675,6 +779,7 @@ static void driveAlongLine(bool towardsBall) {
 
 
 void turnCW(int deg) {
+    lastTurn = 1;
     //lAvg.ResetToValue(analogRead(APIN_LINE_L));
     cAvg.ResetToValue(analogRead(APIN_LINE_C));
     rAvg.ResetToValue(analogRead(APIN_LINE_R));
@@ -715,6 +820,7 @@ void turnCW(int deg) {
 }
 
 void turnCCW(int deg) {
+    lastTurn = -1;
     lAvg.ResetToValue(analogRead(APIN_LINE_L));
     cAvg.ResetToValue(analogRead(APIN_LINE_C));
     //rAvg.ResetToValue(analogRead(APIN_LINE_R));
@@ -771,7 +877,7 @@ void DUNK(void) {
 
 void grabBall(void) {
     sTilt.write(40);
-    delay(200);
+    delay(600);
     sGrip.write(93);
     delay(300);
     sTilt.write(110);
@@ -786,7 +892,7 @@ void dropBall(void) {
 
 int checkIRPosition(void) {
     sTilt.write(80);
-    int received = 0, armPos = 10;
+    int received = 0, armPos = 100;
     while (1) {
         received = irSerial.receive(1000);
         if (received >= '0' && received <= '2') {
@@ -794,13 +900,13 @@ int checkIRPosition(void) {
         }
         else {
             if(armPos < 40 || (armPos >= 80 && armPos < 120) || armPos >= 160)
-                armPos += 5;
+                armPos += 10;
             else
                 armPos += 40;
             if(armPos >= 190) {
                 armPos = 10;
                 sPan.write(armPos);
-                delay(200);
+                delay(400);
             }
             sPan.write(armPos);
             delay(200);
@@ -828,16 +934,18 @@ void turnTowardsCenterBasedOnIRPosition(int irPosition) {
     turnCW(180);
 }
 
-void turnFromCenterTowardsGoalBasedOnIRPosition(int irPosition) {
+void goToGoal(int irPosition) {
     switch(irPosition) {
     case 0:
         turnCCW(90);
+        break;
     case 1:
         break;
     case 2:
         turnCW(90);
         break;
     }
+    driveAlongLine(false);
 }
 
 void returnToCenterFromGoal(void) {
@@ -881,6 +989,10 @@ void setup() {
 }
 
 void loop() {
+    //delay(1000);
+    //startLineFollowFromDiagonal();
+    //for(;;);
+    //return;
     int irPosition = checkIRPosition();
     turnFromCenterTowardsBallBasedOnIRPosition(irPosition);
     driveAlongLine(true);
@@ -888,9 +1000,9 @@ void loop() {
     turnTowardsCenterBasedOnIRPosition(irPosition);
     driveAlongLine(false);
     goForwardABit();
-    turnFromCenterTowardsGoalBasedOnIRPosition(irPosition);
-    driveAlongLine(false);
-    DUNK();
+    goToGoal(irPosition);
+    //DUNK();
+    dropBall();
     returnToCenterFromGoal();
     /*
     // put your main code here, to run repeatedly:
