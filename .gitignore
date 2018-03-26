@@ -53,3 +53,4 @@ dkms.conf
 
 # Secrets
 secret.h
+music.c
