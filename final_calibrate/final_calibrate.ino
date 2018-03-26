@@ -891,7 +891,8 @@ void DUNK(void) {
     sTilt.write(90);
     delay(200);
     sGrip.write(50);
-    delay(300);
+    delay(500);
+    if(swag) pwnage(0);
 }
 
 void grabBall(void) {
@@ -901,6 +902,7 @@ void grabBall(void) {
     delay(300);
     sTilt.write(110);
     delay(100);
+    if(swag) pwnage(1);
 }
 
 void dropBall(void) {
