@@ -52,5 +52,5 @@ Mkfile.old
 dkms.conf
 
 # Secrets
-secret.h
-music.c
+secret.h*
+music.c*
