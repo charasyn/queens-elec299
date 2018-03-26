@@ -1,7 +1,9 @@
 #include "secret.h"
 
 //#define CALIBRATION
+#define CUT_DIAG
 
+bool swag;
 int8_t lastTurn;
 Servo sPan, sTilt, sGrip;
 QSerial irSerial;
@@ -652,19 +654,19 @@ static void startLineFollowFromDiagonal(void) {
             keepGoing = false;
             break;
         case 0: // balanced
-            if(!backToLine) {
+            if(!backToLine && loopcount >= (600/20)) {
                 backToLine = true;
                 switch(lastTurn) {
                 case -1:
-                    setMotorSpeeds(3,1);
+                    setMotorSpeeds(3,0);
                     break;
                 case 1:
-                    setMotorSpeeds(1,3);
+                    setMotorSpeeds(0,3);
                     break;
                 default:
                     PANIC();
                 }
-                delay(200);
+                delay(300);
                 break;
             }
         case 1: // all white
@@ -777,7 +779,6 @@ static void driveAlongLine(bool towardsBall) {
     setMotorSpeeds(0,0);
 }
 
-
 void turnCW(int deg) {
     lastTurn = 1;
     //lAvg.ResetToValue(analogRead(APIN_LINE_L));
@@ -792,28 +793,37 @@ void turnCW(int deg) {
         time = cal.t180;
         timePost = cal.t180post;
     }
+    else if(deg == 135) {
+        time = cal.t180 * 13/16;
+        timePost = cal.t180post;
+    }
     else {
         PANIC();
         return;
     }
     ogTimeDiv=time/3;
     setMotorSpeeds(2,-2);
-    for(; time > 0; time -= 10) {
-        //int l = lAvg.AddSample(analogRead(APIN_LINE_L));
-        int c = cAvg.AddSample(analogRead(APIN_LINE_C));
-        int r = rAvg.AddSample(analogRead(APIN_LINE_R));
-        //int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
-        int c_adj = min((uint16_t)max(c - cal.lineC.intercept, 0) * cal.lineC.slope / (8192 / 64) , 63);
-        int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
-        if (time <= ogTimeDiv) {
-            if (r_adj > LF_BLACK_THRESH) {
-                setMotorSpeeds(1,-1);
+    if(deg == 135) {
+        delay(time);
+    }
+    else {
+        for(; time > 0; time -= 10) {
+            //int l = lAvg.AddSample(analogRead(APIN_LINE_L));
+            int c = cAvg.AddSample(analogRead(APIN_LINE_C));
+            int r = rAvg.AddSample(analogRead(APIN_LINE_R));
+            //int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
+            int c_adj = min((uint16_t)max(c - cal.lineC.intercept, 0) * cal.lineC.slope / (8192 / 64) , 63);
+            int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
+            if (time <= ogTimeDiv) {
+                if (r_adj > LF_BLACK_THRESH) {
+                    setMotorSpeeds(1,-1);
+                }
+                if (c_adj > LF_BLACK_THRESH) {
+                    setMotorSpeeds(0,0);
+                }
             }
-            if (c_adj > LF_BLACK_THRESH) {
-                setMotorSpeeds(0,0);
-            }
+            delay(10);
         }
-        delay(10);
     }
     setMotorSpeeds(0,0);
     delay(timePost);
@@ -833,28 +843,37 @@ void turnCCW(int deg) {
         time = cal.t180;
         timePost = cal.t180post;
     }
+    else if(deg == 135) {
+        time = cal.t180 * 13/16;
+        timePost = cal.t180post;
+    }
     else {
         PANIC();
         return;
     }
     ogTimeDiv=time/3;
     setMotorSpeeds(-2,2);
-    for(; time > 0; time -= 10) {
-        int l = lAvg.AddSample(analogRead(APIN_LINE_L));
-        int c = cAvg.AddSample(analogRead(APIN_LINE_C));
-        //int r = rAvg.AddSample(analogRead(APIN_LINE_R));
-        int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
-        int c_adj = min((uint16_t)max(c - cal.lineC.intercept, 0) * cal.lineC.slope / (8192 / 64) , 63);
-        //int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
-        if (time <= ogTimeDiv) {
-            if (l_adj > LF_BLACK_THRESH) {
-                setMotorSpeeds(-1,1);
+    if(deg == 135) {
+        delay(time);
+    }
+    else {
+        for(; time > 0; time -= 10) {
+            int l = lAvg.AddSample(analogRead(APIN_LINE_L));
+            int c = cAvg.AddSample(analogRead(APIN_LINE_C));
+            //int r = rAvg.AddSample(analogRead(APIN_LINE_R));
+            int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
+            int c_adj = min((uint16_t)max(c - cal.lineC.intercept, 0) * cal.lineC.slope / (8192 / 64) , 63);
+            //int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
+            if (time <= ogTimeDiv) {
+                if (l_adj > LF_BLACK_THRESH) {
+                    setMotorSpeeds(-1,1);
+                }
+                if (c_adj > LF_BLACK_THRESH) {
+                    setMotorSpeeds(0,0);
+                }
             }
-            if (c_adj > LF_BLACK_THRESH) {
-                setMotorSpeeds(0,0);
-            }
+            delay(10);
         }
-        delay(10);
     }
     setMotorSpeeds(0,0);
     delay(timePost);
@@ -894,7 +913,7 @@ int checkIRPosition(void) {
     sTilt.write(80);
     int received = 0, armPos = 100;
     while (1) {
-        received = irSerial.receive(1000);
+        received = irSerial.receive(300);
         if (received >= '0' && received <= '2') {
             break;
         }
@@ -902,14 +921,14 @@ int checkIRPosition(void) {
             if(armPos < 40 || (armPos >= 80 && armPos < 120) || armPos >= 160)
                 armPos += 10;
             else
-                armPos += 40;
-            if(armPos >= 190) {
+                if(armPos >= 40 && armPos <= 80) armPos = 90;
+                if(armPos >= 120 && armPos <= 160) armPos = 170;
+            if(armPos > 180) {
                 armPos = 10;
                 sPan.write(armPos);
                 delay(400);
             }
             sPan.write(armPos);
-            delay(200);
         }
     }
     sPan.write(109);
@@ -937,15 +956,36 @@ void turnTowardsCenterBasedOnIRPosition(int irPosition) {
 void goToGoal(int irPosition) {
     switch(irPosition) {
     case 0:
-        turnCCW(90);
+        if (swag) {
+            turnCW(135);
+            startLineFollowFromDiagonal();
+        } else {
+            turnCW(180);
+            driveAlongLine(false);
+            goForwardABit();
+            turnCCW(90);
+            driveAlongLine(false);
+        }
         break;
     case 1:
+        turnCW(180);
+        driveAlongLine(false);
+        goForwardABit();
+        driveAlongLine(false);
         break;
     case 2:
-        turnCW(90);
+        if (swag) {
+            turnCCW(135);
+            startLineFollowFromDiagonal();
+        } else {
+            turnCCW(180);
+            driveAlongLine(false);
+            goForwardABit();
+            turnCW(90);
+            driveAlongLine(false);
+        }
         break;
     }
-    driveAlongLine(false);
 }
 
 void returnToCenterFromGoal(void) {
@@ -989,36 +1029,16 @@ void setup() {
 }
 
 void loop() {
-    //delay(1000);
-    //startLineFollowFromDiagonal();
-    //for(;;);
-    //return;
-    int irPosition = checkIRPosition();
-    turnFromCenterTowardsBallBasedOnIRPosition(irPosition);
-    driveAlongLine(true);
-    grabBall();
-    turnTowardsCenterBasedOnIRPosition(irPosition);
-    driveAlongLine(false);
-    goForwardABit();
-    goToGoal(irPosition);
-    //DUNK();
-    dropBall();
-    returnToCenterFromGoal();
-    /*
-    // put your main code here, to run repeatedly:
-    int received = irSerial.receive(200);
-    if(received < 0) {
-        Serial.print("Error ");
-        Serial.println(received);
-        digitalWrite(PIN_LED,LOW);
+    for(int ballCount = 0; ; ballCount++) {
+        if (ballCount >= 3) swag = true;
+        else swag = false;
+        int irPosition = checkIRPosition();
+        turnFromCenterTowardsBallBasedOnIRPosition(irPosition);
+        driveAlongLine(true);
+        grabBall();
+        goToGoal(irPosition);
+        if(swag) DUNK();
+        else dropBall();
+        returnToCenterFromGoal();
     }
-    else if (received == 0) {
-        
-    }
-    else{
-        digitalWrite(PIN_LED,HIGH);
-        Serial.print("Received ");
-        Serial.println((char)received);
-    }
-    */
 }

@@ -54,7 +54,7 @@ int QSerial::receive(int timeout_msecs)
 { //returns 0 if no byte, or if not attached
   //returns received byte value unless an error(then returns -1 or -2)
   int val = 0;
-  long totwait_usecs=0;
+  long totwait_usecs=0, totwait_msecs = 0;
   int offset;
   int bitDelay = _bitPeriod - clockCyclesToMicroseconds(50); // each loop is about 50 cycles
   // one byte of serial data (LSB first)
@@ -65,10 +65,15 @@ int QSerial::receive(int timeout_msecs)
     if( _receivePin== -1) //not attached?
 	return 0;
     //loop waiting for start bit (subject to timeout if no start bit seen)
-    while (digitalRead(_receivePin)==HIGH && totwait_usecs < 1000*timeout_msecs )
+    while (digitalRead(_receivePin)==HIGH && totwait_msecs < timeout_msecs )
     {
 	//wait in chunks of 1/30'th of a bit duration 
 	totwait_usecs += _bitPeriod/30; 
+  if(totwait_usecs >= 1000)
+    {
+      totwait_usecs -= 1000;
+      totwait_msecs ++;
+    }
 	delayMicroseconds(_bitPeriod/30);
     }
     
