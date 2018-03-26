@@ -1,4 +1,4 @@
-#include "secret.h"
+#include "secret.hpp"
 
 //#define CALIBRATION
 #define CUT_DIAG
