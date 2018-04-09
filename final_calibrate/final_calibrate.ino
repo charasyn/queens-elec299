@@ -914,23 +914,36 @@ void dropBall(void) {
 int checkIRPosition(void) {
     sTilt.write(80);
     int received = 0, armPos = 100;
+    bool goingCW = true;
     while (1) {
-        received = irSerial.receive(300);
+        received = irSerial.receive(120);
         if (received >= '0' && received <= '2') {
             break;
         }
         else {
-            if(armPos < 40 || (armPos >= 80 && armPos < 120) || armPos >= 160)
-                armPos += 10;
-            else
-                if(armPos >= 40 && armPos <= 80) armPos = 90;
-                if(armPos >= 120 && armPos <= 160) armPos = 170;
-            if(armPos > 180) {
-                armPos = 10;
-                sPan.write(armPos);
-                delay(400);
+            if(goingCW) {
+                if(armPos < 40 || (armPos >= 80 && armPos < 120) || armPos >= 160)
+                    armPos += 10;
+                else {
+                    if(armPos >= 40 && armPos <= 80) armPos = 90;
+                    if(armPos >= 120 && armPos <= 160) armPos = 170;
+                }
+                if(armPos > 180) {
+                    goingCW = false;
+                }
             }
-            sPan.write(armPos);
+            else {
+                if(armPos < 40 || (armPos >= 80 && armPos < 120) || armPos >= 160)
+                    armPos -= 10;
+                else {
+                    if(armPos >= 40 && armPos <= 80) armPos = 30;
+                    if(armPos >= 120 && armPos <= 160) armPos = 110;
+                }
+                if(armPos <= 20) {
+                    goingCW = true;
+                }
+            }
+            sPan.write(min(178,armPos));
         }
     }
     sPan.write(109);
@@ -994,6 +1007,9 @@ void returnToCenterFromGoal(void) {
     turnCW(180);
     driveAlongLine(false);
     goForwardABit();
+    setMotorSpeeds(-1,-1);
+    delay(100);
+    setMotorSpeeds(0,0);
 }
 
 void setup() {
@@ -1039,8 +1055,7 @@ void loop() {
         driveAlongLine(true);
         grabBall();
         goToGoal(irPosition);
-        if(swag) DUNK();
-        else dropBall();
+        dropBall();
         returnToCenterFromGoal();
     }
 }
