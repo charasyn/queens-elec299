@@ -1,6 +1,6 @@
 #include "secret.hpp"
 
-#define CALIBRATION
+//#define CALIBRATION
 #define CUT_DIAG
 #define TESTING
 
@@ -9,9 +9,9 @@ int8_t lastTurn;
 Servo sPan, sTilt, sGrip;
 QSerial irSerial;
 MovingAverage distAvg(8);
-MovingAverage lAvg(2);
-MovingAverage cAvg(2);
-MovingAverage rAvg(2);
+MovingAverage lAvg(4);
+MovingAverage cAvg(4);
+MovingAverage rAvg(4);
 
 ////////////////////////////////////////////////////////////
 // Function prototypes
@@ -834,37 +834,51 @@ void turnCW(int deg) {
     lAvg.ResetToValue(analogRead(APIN_LINE_L));
     cAvg.ResetToValue(analogRead(APIN_LINE_C));
     rAvg.ResetToValue(analogRead(APIN_LINE_R));
-    int time, timePost, ogTimeDiv, centerCount;
+    bool leftOrig = true;
+    {
+        int l = lAvg.AddSample(analogRead(APIN_LINE_L));
+        int c = cAvg.AddSample(analogRead(APIN_LINE_C));
+        int r = rAvg.AddSample(analogRead(APIN_LINE_R));
+        int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
+        int c_adj = min((uint16_t)max(c - cal.lineC.intercept, 0) * cal.lineC.slope / (8192 / 64) , 63);
+        int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
+        leftOrig = !(l_adj > LF_BLACK_THRESH || c_adj > LF_BLACK_THRESH || r_adj > LF_BLACK_THRESH);
+    }
+    int time, slowTime, upTime, timePost, ogTimeDiv, centerCount = -1;
     if(deg == 90) {
         time = cal.t90;
+        slowTime = 200;
         timePost = cal.t90post;
+        setMotorSpeeds(4,-4);
     }
     else if(deg == 180) {
         time = cal.t180;
+        slowTime = 500;
         timePost = cal.t180post;
+        setMotorSpeeds(4,-4);
     }
     else if(deg == 135) {
         time = cal.t180 * 13/16;
         timePost = cal.t180post;
+        setMotorSpeeds(2,-2);
     }
     else {
         PANIC();
         return;
     }
-    ogTimeDiv=time/3;
-    setMotorSpeeds(2,-2);
     if(deg == 135) {
         delay(time);
     }
     else {
-        for(; time > 0; time -= 10) {
+        for(upTime = 0; ; upTime += 5) {
             int l = lAvg.AddSample(analogRead(APIN_LINE_L));
             int c = cAvg.AddSample(analogRead(APIN_LINE_C));
             int r = rAvg.AddSample(analogRead(APIN_LINE_R));
             int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
             int c_adj = min((uint16_t)max(c - cal.lineC.intercept, 0) * cal.lineC.slope / (8192 / 64) , 63);
             int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
-            if (time <= ogTimeDiv) {
+            if (upTime >= slowTime) { setMotorSpeeds(2,-2); }
+            if (leftOrig) {
                 if (r_adj > LF_BLACK_THRESH) {
                     setMotorSpeeds(1,-1);
                     centerCount = 0;
@@ -875,12 +889,22 @@ void turnCW(int deg) {
                 }
                 else if (c_adj > LF_BLACK_THRESH) {
                     setMotorSpeeds(0,0); // stop if we're on center
-                    if(centerCount>=7)
+                    if(centerCount>8)
                         break;
                     centerCount++;
                 }
+                else {
+                    if(centerCount >= 0) {
+                        centerCount = 0;
+                        setMotorSpeeds(-1,1);
+                    }
+                }
             }
-            delay(10);
+            else {
+                if (l_adj < LF_WHITE_THRESH && c_adj < LF_WHITE_THRESH && r_adj < LF_WHITE_THRESH)
+                    leftOrig = true; // if they're all white then we've left the orig. line
+            }
+            delay(5);
         }
     }
     setMotorSpeeds(0,0);
@@ -1093,6 +1117,8 @@ void setup() {
 
 void loop() {
     #ifdef TESTING
+    turnCW(90);
+    delay(300);
     turnCW(180);
     delay(1000);
     return;
