@@ -1,7 +1,8 @@
 #include "secret.hpp"
 
-//#define CALIBRATION
+#define CALIBRATION
 #define CUT_DIAG
+#define TESTING
 
 bool swag;
 int8_t lastTurn;
@@ -57,7 +58,7 @@ static void PANIC() {
 
 ////////////////////////////////////////////////////////////
 // Calibration init code
-#define CAL_VER 2
+#define CAL_VER 3
 
 struct Calibration {
     int16_t version;
@@ -65,38 +66,41 @@ struct Calibration {
         int16_t intercept, slope;
     } lineL, lineC, lineR;
     int16_t distStop, distPeak, distSlow;
-    uint8_t motorSpeedsL[3], motorSpeedsR[3];
+    uint8_t motorSpeedsL[4], motorSpeedsR[4];
     int16_t t90, t90post;
     int16_t t180, t180post;
+
 } cal;
 
 static void loadCalibrationData(void) {
     EEPROM.get(0, cal);
     if(cal.version != CAL_VER) {
         // Load old values because.
-        cal.lineL.intercept = 676;
-        cal.lineL.slope = 8192 / 302;
-        cal.lineC.intercept = 756;
-        cal.lineC.slope = 8192 / 219;
-        cal.lineR.intercept = 779;
-        cal.lineR.slope = 8192 / 208;
+        cal.lineL.intercept = 699;
+        cal.lineL.slope = 40;
+        cal.lineC.intercept = 742;
+        cal.lineC.slope = 33;
+        cal.lineR.intercept = 760;
+        cal.lineR.slope = 42;
         
-        cal.distStop = 400;
-        cal.distPeak = 500;
-        cal.distSlow = 300;
+        cal.distStop = 417;
+        cal.distPeak = 536;
+        cal.distSlow = 236;
 
         cal.motorSpeedsL[0] = 80;
-        cal.motorSpeedsR[0] = 96;
-        cal.motorSpeedsL[1] = 150;
-        cal.motorSpeedsR[1] = 180;
-        cal.motorSpeedsL[2] = 200;
-        cal.motorSpeedsR[2] = 240;
+        cal.motorSpeedsR[0] = 87;
+        cal.motorSpeedsL[1] = 100;
+        cal.motorSpeedsR[1] = 106;
+        cal.motorSpeedsL[2] = 130;
+        cal.motorSpeedsR[2] = 133;
+        cal.motorSpeedsL[3] = 240;
+        cal.motorSpeedsR[3] = 243;
 
-        cal.t90 = 440;
-        cal.t90post = 200;
+        cal.t90 = 780;
+        cal.t90post = 240;
 
-        cal.t180 = 880;
-        cal.t180post = 200;
+        cal.t180 = 1420;
+        cal.t180post = 400;
     }
 }
 static void saveCalibrationData(void) {
@@ -379,12 +383,54 @@ static void calibrateDrivingSpeeds(void) {
         fastR = nR;
     }
 
+    int supafastL = cal.motorSpeedsL[3], supafastR = cal.motorSpeedsR[3];
+    for (keepGoing=true; keepGoing; ) {
+        Serial.println("Calibrating supa-fastium speed.");
+        setMotorSpeeds_raw(supafastL,supafastR);
+        getEncoderPulses(&lc, &rc, 1000/20);
+        setMotorSpeeds(0,0);
+        int nL = supafastL, nR = supafastR;
+        bool otherKeepGoing = true;
+        while(otherKeepGoing) {
+            Serial.print("Prev Vals: ");
+            Serial.print(supafastL);
+            Serial.print(" ");
+            Serial.print(supafastR);
+            Serial.print("\nNext Vals: ");
+            Serial.print(nL);
+            Serial.print(" ");
+            Serial.print(nR);
+            Serial.print("\nEnc. Vals: ");
+            Serial.print(lc);
+            Serial.print(" ");
+            Serial.print(rc);
+            Serial.println("\nPlease enter a command...");
+            switch(getCharInput()) {
+            case 'a': nL += 1; break;
+            case 's': nR += 1; break;
+            case 'z': nL -= 1; break;
+            case 'x': nR -= 1; break;
+            case 'A': nL += 10; break;
+            case 'S': nR += 10; break;
+            case 'Z': nL -= 10; break;
+            case 'X': nR -= 10; break;
+            
+            case 'q': keepGoing = false;
+            case 'n': otherKeepGoing = false; break;
+            }
+        }
+        supafastL = nL;
+        supafastR = nR;
+    }
+
     cal.motorSpeedsL[0] = slowL;
     cal.motorSpeedsR[0] = slowR;
     cal.motorSpeedsL[1] = medL;
     cal.motorSpeedsR[1] = medR;
     cal.motorSpeedsL[2] = fastL;
     cal.motorSpeedsR[2] = fastR;
+    cal.motorSpeedsL[3] = supafastL;
+    cal.motorSpeedsR[3] = supafastR;
 
     Serial.println("Readings done.\nCalibrated values have been recorded.");
     Serial.println("Calibration of motor speeds successful.");
@@ -395,6 +441,8 @@ static void calibrateDrivingSpeeds(void) {
     PRINTSAME(medR)
     PRINTSAME(fastL)
     PRINTSAME(fastR)
+    PRINTSAME(supafastL)
+    PRINTSAME(supafastR)
     
     Serial.println("Next up: turning.");
     int t90 = cal.t90, t90post = cal.t90post;
@@ -519,6 +567,8 @@ static void printVals(void) {
     PRINTSAME(cal.motorSpeedsR[1])
     PRINTSAME(cal.motorSpeedsL[2])
     PRINTSAME(cal.motorSpeedsR[2])
+    PRINTSAME(cal.motorSpeedsL[3])
+    PRINTSAME(cal.motorSpeedsR[3])
     Serial.println("###################");
     PRINTSAME(cal.t90)
     PRINTSAME(cal.t90post)
@@ -781,10 +831,10 @@ static void driveAlongLine(bool towardsBall) {
 
 void turnCW(int deg) {
     lastTurn = 1;
-    //lAvg.ResetToValue(analogRead(APIN_LINE_L));
+    lAvg.ResetToValue(analogRead(APIN_LINE_L));
     cAvg.ResetToValue(analogRead(APIN_LINE_C));
     rAvg.ResetToValue(analogRead(APIN_LINE_R));
-    int time, timePost, ogTimeDiv;
+    int time, timePost, ogTimeDiv, centerCount;
     if(deg == 90) {
         time = cal.t90;
         timePost = cal.t90post;
@@ -808,18 +858,26 @@ void turnCW(int deg) {
     }
     else {
         for(; time > 0; time -= 10) {
-            //int l = lAvg.AddSample(analogRead(APIN_LINE_L));
+            int l = lAvg.AddSample(analogRead(APIN_LINE_L));
             int c = cAvg.AddSample(analogRead(APIN_LINE_C));
             int r = rAvg.AddSample(analogRead(APIN_LINE_R));
-            //int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
+            int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
             int c_adj = min((uint16_t)max(c - cal.lineC.intercept, 0) * cal.lineC.slope / (8192 / 64) , 63);
             int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
             if (time <= ogTimeDiv) {
                 if (r_adj > LF_BLACK_THRESH) {
                     setMotorSpeeds(1,-1);
+                    centerCount = 0;
                 }
-                if (c_adj > LF_BLACK_THRESH) {
-                    setMotorSpeeds(0,0);
+                else if (l_adj > LF_BLACK_THRESH) {
+                    setMotorSpeeds(-1,1); // counter-turn if we went too far
+                    centerCount = 0;
+                }
+                else if (c_adj > LF_BLACK_THRESH) {
+                    setMotorSpeeds(0,0); // stop if we're on center
+                    if(centerCount>=7)
+                        break;
+                    centerCount++;
                 }
             }
             delay(10);
@@ -833,7 +891,7 @@ void turnCCW(int deg) {
     lastTurn = -1;
     lAvg.ResetToValue(analogRead(APIN_LINE_L));
     cAvg.ResetToValue(analogRead(APIN_LINE_C));
-    //rAvg.ResetToValue(analogRead(APIN_LINE_R));
+    rAvg.ResetToValue(analogRead(APIN_LINE_R));
     int time, timePost, ogTimeDiv;
     if(deg == 90) {
         time = cal.t90;
@@ -860,16 +918,19 @@ void turnCCW(int deg) {
         for(; time > 0; time -= 10) {
             int l = lAvg.AddSample(analogRead(APIN_LINE_L));
             int c = cAvg.AddSample(analogRead(APIN_LINE_C));
-            //int r = rAvg.AddSample(analogRead(APIN_LINE_R));
+            int r = rAvg.AddSample(analogRead(APIN_LINE_R));
             int l_adj = min((uint16_t)max(l - cal.lineL.intercept, 0) * cal.lineL.slope / (8192 / 64) , 63);
             int c_adj = min((uint16_t)max(c - cal.lineC.intercept, 0) * cal.lineC.slope / (8192 / 64) , 63);
-            //int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
+            int r_adj = min((uint16_t)max(r - cal.lineR.intercept, 0) * cal.lineR.slope / (8192 / 64) , 63);
             if (time <= ogTimeDiv) {
                 if (l_adj > LF_BLACK_THRESH) {
                     setMotorSpeeds(-1,1);
                 }
+                if (r_adj > LF_BLACK_THRESH) {
+                    setMotorSpeeds(1,-1); // counter-turn if we went too far
+                }
                 if (c_adj > LF_BLACK_THRESH) {
-                    setMotorSpeeds(0,0);
+                    setMotorSpeeds(0,0); // stop if we're on center
                 }
             }
             delay(10);
@@ -1031,16 +1092,20 @@ void setup() {
 }
 
 void loop() {
+    #ifdef TESTING
+    turnCW(180);
+    delay(1000);
+    return;
+    #endif
+
+
     for(int ballCount = 0; ; ballCount++) {
-        if (ballCount >= 3) swag = true;
-        else swag = false;
         int irPosition = checkIRPosition();
         turnFromCenterTowardsBallBasedOnIRPosition(irPosition);
         driveAlongLine(true);
         grabBall();
         goToGoal(irPosition);
-        if(swag) DUNK();
-        else dropBall();
+        dropBall();
         returnToCenterFromGoal();
     }
 }
